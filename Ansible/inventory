@@ -1,0 +1,1 @@
+local ansible_host=localhost ansible_user=mvk-admin ansible_ssh_pass=mvk-admin

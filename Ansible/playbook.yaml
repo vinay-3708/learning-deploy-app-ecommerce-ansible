@@ -1,0 +1,81 @@
+---
+- name: 'Deployment of ecom app throug LAMP Stack'
+  hosts: local
+  tasks:
+    - name: 'Install FIrewallD & MariaDB & HTTPD & GIT & php & phpy-mysql'
+      become: true
+      yum:
+        name: '{{ item }}'
+        state: present
+      with_items:
+        - git
+        - firewalld
+        - mariadb
+        - httpd
+        - php
+        - php-mysqlnd
+    - name: 'Start all services'
+      become: true
+      service:
+        name: '{{ item }}'
+        state: started
+      with_items:
+        - firewalld
+        - mariadb
+        - httpd
+    - name: 'Configure FirewallD for DB & httpd'
+      become: yes
+      ansible.posix.firewalld:
+        permanent: yes
+        immediate: yes
+        port: "{{item.port}}/{{item.proto}}"
+        state: "{{item.state}}"
+        zone: "{{item.zone}}"
+      with_items:
+       - {port: "3306", proto: "tcp", state: "enabled", zone: "public" }
+       - {port: "80", proto: "tcp", state: "enabled", zone: "public" }
+    - name: 'Check the firewalld rules'
+      become: yes
+      command: firewall-cmd --list-all
+      register: firewall_rules
+    - name: 'Print Firewall Rules to firewall-rules.txt'
+      local_action:
+        copy content="{{ firewall_rules.stdout }}"
+        dest="/home/mvk-admin/Learning/Ansible/firewall-rules.log"
+    - name: 'Create a ecomdb in mariadb'
+      become: true
+      community.mysql.mysql_db:
+        name: ecomdb
+        state: present
+        login_unix_socket: /var/lib/mysql/mysql.sock
+    - name: 'Create a DB user ecomuser'
+      become: true
+      community.mysql.mysql_user:
+        name: ecomuser
+        password: ecompassword
+        priv: '*.*:ALL'
+        state: present
+        login_unix_socket: /var/lib/mysql/mysql.sock
+    - name: Run several insert queries against db ecomdb in single transaction
+      become: yes
+      community.mysql.mysql_query:
+        login_unix_socket: /var/lib/mysql/mysql.sock
+        login_db: ecomdb
+        query:
+        - USE ecomdb;
+        - CREATE TABLE products (id mediumint(8) unsigned NOT NULL auto_increment,Name varchar(255) default NULL,Price varchar(255) default NULL, ImageUrl varchar(255) default NULL,PRIMARY KEY (id)) AUTO_INCREMENT=1;
+        - INSERT INTO products (Name,Price,ImageUrl) VALUES ("Laptop","100","c-1.png"),("Drone","200","c-2.png"),("VR","300","c-3.png"),("Tablet","50","c-5.png"),("Watch","90","c-6.png"),("Phone Covers","20","c-7.png"),("Phone","80","c-8.png"),("Laptop","150","c-4.png");
+        single_transaction: true
+    - name: 'CLone Github code'
+      become: yes
+      ansible.builtin.git:
+        repo: 'https://github.com/kodekloudhub/learning-app-ecommerce.git'
+        dest: /var/www/html/
+        single_branch: yes
+        version: master
+    - name: 'Run sed command'
+      become: yes
+      command: sed -i 's/172.20.1.101/localhost/g' /var/www/html/index.php
+    - name: 'Test the site'
+      shell: "curl http://localhost:80/ > /home/mvk-admin/Learning/Ansible/website-log.txt"
+      ignore_errors: yes
