@@ -273,7 +273,7 @@ SELECT * FROM products;
 
 You will see the similar output page.
 
-<img src="Ansible/DB_OUTPUT.PNG>
+<img src="Ansible/DB_OUTPUT.PNG">
 
 
 2. Open the browser and hit http://localhost:80/ URL. You will see the following page:
